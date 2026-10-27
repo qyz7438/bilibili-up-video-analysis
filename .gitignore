@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+data/
+*.db
+*.sqlite*
+*.log
+
+# Private credentials and key material
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json

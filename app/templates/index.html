@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B站UP主视频AI分析系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .tab-active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: 600; }
+        .tab-inactive { border-bottom: 2px solid transparent; color: #64748b; }
+        .tab-inactive:hover { color: #334155; }
+        .toast-enter { transform: translateX(100%); opacity: 0; }
+        .toast-enter-active { transform: translateX(0); opacity: 1; transition: all 0.3s ease; }
+        .toast-exit { transform: translateX(0); opacity: 1; }
+        .toast-exit-active { transform: translateX(100%); opacity: 0; transition: all 0.3s ease; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen flex flex-col">
+    <!-- 顶部导航栏 -->
+    <header class="bg-slate-800 text-white shadow-lg shrink-0">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex items-center">
+            <svg class="w-7 h-7 mr-3 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            <h1 class="text-xl font-bold tracking-wide">B站UP主视频AI分析系统</h1>
+        </div>
+    </header>
+
+    <!-- 标签栏 -->
+    <nav class="bg-white shadow-sm shrink-0">
+        <div class="max-w-7xl mx-auto px-4">
+            <div class="flex space-x-8">
+                <button id="tab-up" onclick="switchTab('up')" class="tab-active py-3 px-1 text-sm transition-colors">
+                    UP主管理
+                </button>
+                <button id="tab-video" onclick="switchTab('video')" class="tab-inactive py-3 px-1 text-sm transition-colors">
+                    视频与分析
+                </button>
+                <button id="tab-favorite" onclick="switchTab('favorite')" class="tab-inactive py-3 px-1 text-sm transition-colors">
+                    收藏夹管理
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 主内容区 -->
+    <main class="flex-1 max-w-7xl mx-auto w-full px-4 py-6">
+        <!-- UP主管理页面 -->
+        <section id="page-up" class="space-y-6">
+            <!-- 添加UP主 -->
+            <div class="bg-white rounded-xl shadow-md p-5">
+                <h2 class="text-lg font-semibold text-slate-800 mb-4">添加UP主</h2>
+                <div class="flex flex-col sm:flex-row gap-3">
+                    <input id="add-uid-input" type="text" placeholder="输入B站UID" 
+                        class="flex-1 border border-slate-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm">
+                    <button id="btn-add-up" onclick="addUp()" 
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-md text-sm font-medium transition-colors flex items-center justify-center gap-2 min-w-[120px]">
+                        <span>添加UP主</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- UP主列表 -->
+            <div>
+                <h2 class="text-lg font-semibold text-slate-800 mb-4">已添加UP主</h2>
+                <div id="up-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- 动态渲染 -->
+                </div>
+                <div id="up-empty" class="hidden text-center py-12 text-slate-400">
+                    <svg class="w-12 h-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    </svg>
+                    <p>暂无UP主，请添加</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 视频与分析页面 -->
+        <section id="page-video" class="hidden space-y-5">
+            <!-- 顶部控制栏 -->
+            <div class="bg-white rounded-xl shadow-md p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                <select id="up-select" onchange="onUpChange()" 
+                    class="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[200px]">
+                    <option value="">选择UP主</option>
+                </select>
+                <div class="flex flex-wrap gap-2 sm:ml-auto">
+                    <button id="btn-batch-subtitle" onclick="batchSubtitle()" disabled
+                        class="bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                        批量获取字幕
+                    </button>
+                    <button id="btn-batch-transcribe" onclick="batchTranscribe()" disabled
+                        class="bg-purple-500 hover:bg-purple-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+                        批量音频转录
+                    </button>
+                    <button id="btn-batch-analyze" onclick="batchAnalyze()" disabled
+                        class="bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                        批量分析
+                    </button>
+                </div>
+            </div>
+
+            <!-- 统计信息 -->
+            <div id="stats-bar" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="bg-white rounded-xl shadow-md p-4">
+                    <p class="text-xs text-slate-500 mb-1">视频总数</p>
+                    <p id="stat-total" class="text-2xl font-bold text-slate-800">0</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-md p-4">
+                    <p class="text-xs text-slate-500 mb-1">已分析</p>
+                    <p id="stat-analyzed" class="text-2xl font-bold text-emerald-600">0</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-md p-4">
+                    <p class="text-xs text-slate-500 mb-1">分析进度</p>
+                    <div class="w-full bg-slate-200 rounded-full h-2.5 mt-2">
+                        <div id="stat-progress" class="bg-blue-600 h-2.5 rounded-full transition-all" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 视频列表 -->
+            <div id="video-list" class="space-y-3">
+                <!-- 动态渲染 -->
+            </div>
+            <div id="video-empty" class="hidden text-center py-12 text-slate-400">
+                <svg class="w-12 h-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+                </svg>
+                <p>请先选择UP主</p>
+            </div>
+
+            <!-- 分页 -->
+            <div id="pagination" class="hidden flex items-center justify-center gap-2 pt-2">
+                <button onclick="changePage(-1)" id="btn-prev" 
+                    class="px-3 py-1.5 rounded-md border border-slate-300 text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">上一页</button>
+                <span id="page-info" class="text-sm text-slate-600 px-2">第 1 页</span>
+                <button onclick="changePage(1)" id="btn-next" 
+                    class="px-3 py-1.5 rounded-md border border-slate-300 text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">下一页</button>
+            </div>
+        </section>
+
+        <!-- 收藏夹管理页面 -->
+        <section id="page-favorite" class="hidden space-y-5">
+            <!-- 操作栏 -->
+            <div class="bg-white rounded-xl shadow-md p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+                <input id="fav-uid-input" type="text" placeholder="输入B站UID"
+                    class="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[160px]">
+                <button id="btn-fetch-folders" onclick="loadFavoriteFolders()"
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1">
+                    获取收藏夹
+                </button>
+                <select id="fav-folder-select"
+                    class="border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[200px]">
+                    <option value="">请先获取收藏夹</option>
+                </select>
+                <button id="btn-sync-fav" onclick="syncFavoriteVideos()" disabled
+                    class="bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-1">
+                    同步收藏视频
+                </button>
+                <div class="flex flex-wrap gap-2 sm:ml-auto">
+                    <button id="btn-fav-batch-subtitle" onclick="batchFavoriteSubtitle()" disabled
+                        class="bg-amber-500 hover:bg-amber-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-md text-xs font-medium transition-colors">批量字幕</button>
+                    <button id="btn-fav-batch-transcribe" onclick="batchFavoriteTranscribe()" disabled
+                        class="bg-purple-500 hover:bg-purple-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-md text-xs font-medium transition-colors">批量转录</button>
+                    <button id="btn-fav-batch-analyze" onclick="batchFavoriteAnalyze()" disabled
+                        class="bg-emerald-500 hover:bg-emerald-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-md text-xs font-medium transition-colors">批量分析</button>
+                </div>
+            </div>
+
+            <!-- 统计信息 -->
+            <div id="fav-stats-bar" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="bg-white rounded-xl shadow-md p-4">
+                    <p class="text-xs text-slate-500 mb-1">收藏视频总数</p>
+                    <p id="fav-stat-total" class="text-2xl font-bold text-slate-800">0</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-md p-4">
+                    <p class="text-xs text-slate-500 mb-1">已分析</p>
+                    <p id="fav-stat-analyzed" class="text-2xl font-bold text-emerald-600">0</p>
+                </div>
+                <div class="bg-white rounded-xl shadow-md p-4">
+                    <p class="text-xs text-slate-500 mb-1">分析进度</p>
+                    <div class="w-full bg-slate-200 rounded-full h-2.5 mt-2">
+                        <div id="fav-stat-progress" class="bg-blue-600 h-2.5 rounded-full transition-all" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 收藏视频列表 -->
+            <div id="fav-list" class="space-y-3"></div>
+            <div id="fav-empty" class="hidden text-center py-12 text-slate-400">
+                <svg class="w-12 h-12 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"/>
+                </svg>
+                <p>请先获取并同步收藏夹</p>
+            </div>
+
+            <!-- 分页 -->
+            <div id="fav-pagination" class="hidden flex items-center justify-center gap-2 pt-2">
+                <button onclick="changeFavoritePage(-1)" id="btn-fav-prev"
+                    class="px-3 py-1.5 rounded-md border border-slate-300 text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">上一页</button>
+                <span id="fav-page-info" class="text-sm text-slate-600 px-2">第 1 页</span>
+                <button onclick="changeFavoritePage(1)" id="btn-fav-next"
+                    class="px-3 py-1.5 rounded-md border border-slate-300 text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed">下一页</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- 分析结果 Modal -->
+    <div id="modal-overlay" onclick="closeModal(event)" class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden z-40 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto" onclick="event.stopPropagation()">
+            <div class="sticky top-0 bg-white border-b border-slate-100 px-5 py-4 flex items-center justify-between rounded-t-xl">
+                <h3 class="text-lg font-bold text-slate-800">AI分析结果</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 transition-colors">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div id="modal-body" class="p-5 space-y-5">
+                <!-- 动态渲染 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast 容器 -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+    <script>
+        // ==================== 状态 ====================
+        let currentTab = 'up';
+        let upList = [];
+        let videoList = [];
+        let currentUpId = null;
+        let currentPage = 1;
+        let totalVideos = 0;
+        const pageSize = 10;
+        let analysisCache = {};
+
+        // 收藏夹状态
+        let favFolders = [];
+        let favList = [];
+        let currentFavMediaId = null;
+        let currentFavUid = null;
+        let currentFavPage = 1;
+        let totalFavVideos = 0;
+        const favPageSize = 10;
+        let favAnalysisCache = {};
+
+        // ==================== 初始化 ====================
+        document.addEventListener('DOMContentLoaded', () => {
+            loadUpList();
+        });
+
+        // ==================== Tab 切换 ====================
+        function switchTab(tab) {
+            currentTab = tab;
+            document.getElementById('tab-up').className = tab === 'up' ? 'tab-active py-3 px-1 text-sm transition-colors' : 'tab-inactive py-3 px-1 text-sm transition-colors';
+            document.getElementById('tab-video').className = tab === 'video' ? 'tab-active py-3 px-1 text-sm transition-colors' : 'tab-inactive py-3 px-1 text-sm transition-colors';
+            document.getElementById('tab-favorite').className = tab === 'favorite' ? 'tab-active py-3 px-1 text-sm transition-colors' : 'tab-inactive py-3 px-1 text-sm transition-colors';
+            document.getElementById('page-up').classList.toggle('hidden', tab !== 'up');
+            document.getElementById('page-video').classList.toggle('hidden', tab !== 'video');
+            document.getElementById('page-favorite').classList.toggle('hidden', tab !== 'favorite');
+            if (tab === 'video') refreshUpSelect();
+            if (tab === 'favorite') loadFavoriteStats();
+        }
+
+        // ==================== Toast ====================
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgColor = type === 'success' ? 'bg-emerald-500' : type === 'error' ? 'bg-red-500' : 'bg-blue-500';
+            const icon = type === 'success' 
+                ? '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>'
+                : type === 'error'
+                ? '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>'
+                : '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>';
+            toast.className = `${bgColor} text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 min-w-[280px] toast-enter`;
+            toast.innerHTML = `${icon}<span class="text-sm font-medium">${message}</span>`;
+            container.appendChild(toast);
+            requestAnimationFrame(() => toast.classList.replace('toast-enter', 'toast-enter-active'));
+            setTimeout(() => {
+                toast.classList.replace('toast-enter-active', 'toast-exit-active');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        // ==================== Loading 按钮 ====================
+        function setLoading(btnId, loading) {
+            const btn = document.getElementById(btnId);
+            if (!btn) return;
+            if (loading) {
+                btn.dataset.originalText = btn.innerHTML;
+                btn.innerHTML = `<svg class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg><span>处理中...</span>`;
+                btn.disabled = true;
+                btn.classList.add('opacity-70', 'cursor-not-allowed');
+            } else {
+                btn.innerHTML = btn.dataset.originalText || btn.innerText;
+                btn.disabled = false;
+                btn.classList.remove('opacity-70', 'cursor-not-allowed');
+            }
+        }
+
+        // ==================== API 调用 ====================
+        async function api(url, options = {}) {
+            try {
+                const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...options });
+                const data = await res.json().catch(() => null);
+                if (!res.ok) {
+                    throw new Error(data?.detail || data?.msg || `请求失败 (${res.status})`);
+                }
+                return data;
+            } catch (err) {
+                showToast(err.message, 'error');
+                throw err;
+            }
+        }
+
+        // ==================== UP主管理 ====================
+        async function loadUpList() {
+            try {
+                const data = await api('/api/up/list');
+                upList = data || [];
+                renderUpList();
+            } catch (e) { /* toast已在api中处理 */ }
+        }
+
+        function renderUpList() {
+            const container = document.getElementById('up-list');
+            const empty = document.getElementById('up-empty');
+            if (upList.length === 0) {
+                container.innerHTML = '';
+                empty.classList.remove('hidden');
+                return;
+            }
+            empty.classList.add('hidden');
+            container.innerHTML = upList.map(up => `
+                <div class="bg-white rounded-xl shadow-md p-4 flex items-start gap-3 hover:shadow-lg transition-shadow">
+                    <img src="${up.face || ''}" alt="${up.name}" class="w-10 h-10 rounded-full object-cover shrink-0 bg-slate-100">
+                    <div class="flex-1 min-w-0">
+                        <h3 class="font-semibold text-slate-800 truncate">${up.name || '未知'}</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">UID: ${up.uid}</p>
+                        <p class="text-xs text-slate-400 mt-1 truncate">${up.description || '暂无简介'}</p>
+                        <p class="text-[10px] text-slate-300 mt-1">${new Date(up.created_at).toLocaleString()}</p>
+                    </div>
+                    <div class="flex flex-col gap-1.5 shrink-0">
+                        <button onclick="syncUpVideos(${up.id}, this)" 
+                            class="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-2.5 py-1 rounded font-medium transition-colors">同步视频</button>
+                        <button onclick="deleteUp(${up.id})" 
+                            class="text-xs bg-red-50 text-red-500 hover:bg-red-100 px-2.5 py-1 rounded font-medium transition-colors">删除</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        async function addUp() {
+            const input = document.getElementById('add-uid-input');
+            const uid = input.value.trim();
+            if (!uid) return showToast('请输入UID', 'error');
+            if (!/^\d+$/.test(uid)) return showToast('UID必须为数字', 'error');
+            setLoading('btn-add-up', true);
+            try {
+                await api(`/api/up/add/${uid}`, { method: 'POST' });
+                showToast('添加成功');
+                input.value = '';
+                await loadUpList();
+            } catch (e) {} finally {
+                setLoading('btn-add-up', false);
+            }
+        }
+
+        async function deleteUp(upId) {
+            if (!confirm('确定删除该UP主吗？相关视频和分析数据也会被删除。')) return;
+            try {
+                await api(`/api/up/${upId}`, { method: 'DELETE' });
+                showToast('删除成功');
+                if (currentUpId === upId) {
+                    currentUpId = null;
+                    document.getElementById('up-select').value = '';
+                    renderVideoList();
+                }
+                await loadUpList();
+            } catch (e) {}
+        }
+
+        async function syncUpVideos(upId, btn) {
+            const original = btn.innerHTML;
+            btn.innerHTML = `<svg class="animate-spin w-3 h-3 inline mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>同步中`;
+            btn.disabled = true;
+            try {
+                await api(`/api/video/sync/${upId}`, { method: 'POST' });
+                showToast('同步成功');
+                if (currentUpId === upId) await loadVideos();
+            } catch (e) {} finally {
+                btn.innerHTML = original;
+                btn.disabled = false;
+            }
+        }
+
+        // ==================== 视频与分析 ====================
+        function refreshUpSelect() {
+            const select = document.getElementById('up-select');
+            const currentVal = select.value;
+            select.innerHTML = '<option value="">选择UP主</option>' + upList.map(up => 
+                `<option value="${up.id}">${up.name} (UID:${up.uid})</option>`
+            ).join('');
+            select.value = currentVal;
+            if (currentUpId) select.value = currentUpId;
+        }
+
+        async function onUpChange() {
+            const select = document.getElementById('up-select');
+            currentUpId = select.value ? parseInt(select.value) : null;
+            currentPage = 1;
+            totalVideos = 0;
+            analysisCache = {};
+            document.getElementById('btn-batch-subtitle').disabled = !currentUpId;
+            document.getElementById('btn-batch-transcribe').disabled = !currentUpId;
+            document.getElementById('btn-batch-analyze').disabled = !currentUpId;
+            if (currentUpId) {
+                await Promise.all([loadVideos(), loadStats()]);
+            } else {
+                renderVideoList();
+                document.getElementById('stats-bar').classList.add('hidden');
+            }
+        }
+
+        async function loadVideos() {
+            if (!currentUpId) return;
+            try {
+                const data = await api(`/api/video/list?up_id=${currentUpId}&page=${currentPage}&size=${pageSize}`);
+                videoList = data.items || [];
+                totalVideos = data.total || 0;
+                renderVideoList();
+                updatePagination();
+                // 预加载分析状态
+                await preloadAnalysisStatus();
+            } catch (e) {}
+        }
+
+        async function preloadAnalysisStatus() {
+            if (!videoList.length) return;
+            await Promise.all(videoList.map(async v => {
+                try {
+                    const res = await fetch(`/api/analysis/${v.id}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        analysisCache[v.id] = data;
+                    } else {
+                        analysisCache[v.id] = null;
+                    }
+                } catch (e) {
+                    analysisCache[v.id] = null;
+                }
+            }));
+            renderVideoList();
+        }
+
+        async function loadStats() {
+            if (!currentUpId) return;
+            try {
+                const data = await api(`/api/analysis/stats/${currentUpId}`);
+                document.getElementById('stats-bar').classList.remove('hidden');
+                document.getElementById('stat-total').textContent = data.total_videos || 0;
+                document.getElementById('stat-analyzed').textContent = data.analyzed_count || 0;
+                const pct = data.total_videos ? Math.round((data.analyzed_count / data.total_videos) * 100) : 0;
+                document.getElementById('stat-progress').style.width = pct + '%';
+            } catch (e) {}
+        }
+
+        function getVideoStatus(video) {
+            const hasSubtitle = video.has_subtitle;
+            const hasAnalysis = video.is_analyzed;
+            if (hasAnalysis) return { label: '已分析', class: 'bg-emerald-100 text-emerald-700' };
+            if (hasSubtitle) return { label: '有字幕未分析', class: 'bg-amber-100 text-amber-700' };
+            return { label: '无字幕', class: 'bg-slate-100 text-slate-500' };
+        }
+
+        function renderVideoList() {
+            const container = document.getElementById('video-list');
+            const empty = document.getElementById('video-empty');
+            if (!currentUpId || videoList.length === 0) {
+                container.innerHTML = '';
+                empty.classList.toggle('hidden', !!currentUpId && videoList.length === 0);
+                if (!currentUpId) empty.classList.remove('hidden');
+                document.getElementById('pagination').classList.add('hidden');
+                return;
+            }
+            empty.classList.add('hidden');
+            container.innerHTML = videoList.map(video => {
+                const status = getVideoStatus(video);
+                return `
+                <div class="bg-white rounded-xl shadow-md p-3 flex flex-col sm:flex-row gap-3 hover:shadow-lg transition-shadow">
+                    <img src="${video.pic || ''}" alt="${video.title}" 
+                        class="w-full sm:w-[120px] h-[68px] sm:h-[68px] object-cover rounded-lg bg-slate-100 shrink-0">
+                    <div class="flex-1 min-w-0 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-start gap-2">
+                                <h3 class="text-sm font-semibold text-slate-800 line-clamp-2 leading-snug">${video.title}</h3>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap shrink-0 ${status.class}">${status.label}</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1">${video.pubdate ? new Date(video.pubdate).toLocaleString() : ''}</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2 mt-2 sm:mt-1">
+                            ${video.has_subtitle ? `
+                            <button onclick="fetchSubtitle(${video.id}, this)" 
+                                class="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-2.5 py-1 rounded font-medium transition-colors">获取字幕</button>
+                            <button onclick="analyzeVideo(${video.id}, this)" 
+                                class="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-2.5 py-1 rounded font-medium transition-colors">分析</button>
+                            ` : `
+                            <button onclick="fetchTranscribe(${video.id}, this)" 
+                                class="text-xs bg-purple-50 text-purple-600 hover:bg-purple-100 px-2.5 py-1 rounded font-medium transition-colors">音频转录</button>
+                            `}
+                            <button onclick="viewResult(${video.id})" 
+                                class="text-xs bg-slate-50 text-slate-600 hover:bg-slate-100 px-2.5 py-1 rounded font-medium transition-colors">查看结果</button>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function updatePagination() {
+            const totalPages = Math.ceil(totalVideos / pageSize) || 1;
+            const pagination = document.getElementById('pagination');
+            if (totalVideos <= pageSize) {
+                pagination.classList.add('hidden');
+                return;
+            }
+            pagination.classList.remove('hidden');
+            document.getElementById('page-info').textContent = `第 ${currentPage} / ${totalPages} 页 (共${totalVideos}条)`;
+            document.getElementById('btn-prev').disabled = currentPage <= 1;
+            document.getElementById('btn-next').disabled = currentPage >= totalPages;
+        }
+
+        async function changePage(delta) {
+            const totalPages = Math.ceil(totalVideos / pageSize) || 1;
+            const newPage = currentPage + delta;
+            if (newPage < 1 || newPage > totalPages) return;
+            currentPage = newPage;
+            await loadVideos();
+        }
+
+        // ==================== 视频操作 ====================
+        async function fetchSubtitle(videoId, btn) {
+            const original = btn.innerHTML;
+            btn.innerHTML = `<svg class="animate-spin w-3 h-3 inline mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>获取中`;
+            btn.disabled = true;
+            try {
+                await api(`/api/video/subtitle/${videoId}`, { method: 'POST' });
+                showToast('字幕获取成功');
+                await loadVideos();
+            } catch (e) {} finally {
+                btn.innerHTML = original;
+                btn.disabled = false;
+            }
+        }
+
+        async function fetchTranscribe(videoId, btn) {
+            const original = btn.innerHTML;
+            btn.innerHTML = `<svg class="animate-spin w-3 h-3 inline mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>转录中`;
+            btn.disabled = true;
+            try {
+                const res = await api(`/api/video/transcribe/${videoId}`, { method: 'POST' });
+                showToast(res.msg || '音频转录完成');
+                await loadVideos();
+            } catch (e) {} finally {
+                btn.innerHTML = original;
+                btn.disabled = false;
+            }
+        }
+
+        async function analyzeVideo(videoId, btn) {
+            const original = btn.innerHTML;
+            btn.innerHTML = `<svg class="animate-spin w-3 h-3 inline mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>分析中`;
+            btn.disabled = true;
+            try {
+                await api(`/api/analysis/analyze/${videoId}`, { method: 'POST' });
+                showToast('分析完成');
+                analysisCache[videoId] = null;
+                await Promise.all([loadVideos(), loadStats()]);
+            } catch (e) {} finally {
+                btn.innerHTML = original;
+                btn.disabled = false;
+            }
+        }
+
+        async function viewResult(videoId) {
+            let data = analysisCache[videoId];
+            if (!data) {
+                try {
+                    data = await api(`/api/analysis/${videoId}`);
+                    analysisCache[videoId] = data;
+                } catch (e) { return; }
+            }
+            if (!data) {
+                showToast('暂无分析结果', 'error');
+                return;
+            }
+            const sentimentColors = {
+                'positive': 'bg-emerald-100 text-emerald-700',
+                'negative': 'bg-red-100 text-red-700',
+                'neutral': 'bg-slate-100 text-slate-600'
+            };
+            const sentimentLabels = {
+                'positive': '积极',
+                'negative': '消极',
+                'neutral': '中性'
+            };
+            const sc = sentimentColors[data.sentiment] || sentimentColors.neutral;
+            const sl = sentimentLabels[data.sentiment] || data.sentiment || '未知';
+            const topicsHtml = (data.topics || []).map(t => 
+                `<span class="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full font-medium">${t}</span>`
+            ).join('');
+            const keyPointsHtml = (data.key_points || []).map((p, i) => 
+                `<li class="flex gap-2 text-sm text-slate-700"><span class="text-blue-500 font-bold shrink-0">${i+1}.</span><span>${p}</span></li>`
+            ).join('');
+            document.getElementById('modal-body').innerHTML = `
+                <div>
+                    <p class="text-xs text-slate-400 mb-1 font-medium">摘要</p>
+                    <p class="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg p-3">${data.summary || '无摘要'}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 mb-2 font-medium">关键点</p>
+                    <ul class="space-y-2">${keyPointsHtml || '<li class="text-sm text-slate-400">无关键点</li>'}</ul>
+                </div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <div>
+                        <p class="text-xs text-slate-400 mb-1 font-medium">主题标签</p>
+                        <div class="flex flex-wrap gap-1.5">${topicsHtml || '<span class="text-sm text-slate-400">无标签</span>'}</div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-3 pt-2 border-t border-slate-100">
+                    <div>
+                        <p class="text-xs text-slate-400 mb-1 font-medium">情感倾向</p>
+                        <span class="text-xs px-2.5 py-1 rounded-full font-medium ${sc}">${sl}</span>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-400 mb-1 font-medium">模型</p>
+                        <span class="text-xs text-slate-600 font-mono bg-slate-100 px-2 py-1 rounded">${data.llm_model || '-'}</span>
+                    </div>
+                </div>
+            `;
+            document.getElementById('modal-overlay').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeModal(event) {
+            if (event && event.target !== document.getElementById('modal-overlay')) return;
+            document.getElementById('modal-overlay').classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+
+        // ==================== 批量操作 ====================
+        async function batchSubtitle() {
+            if (!currentUpId) return;
+            setLoading('btn-batch-subtitle', true);
+            try {
+                await api(`/api/video/subtitle_all/${currentUpId}`, { method: 'POST' });
+                showToast('批量获取字幕已开始，请稍后刷新查看');
+                setTimeout(() => loadVideos(), 2000);
+            } catch (e) {} finally {
+                setLoading('btn-batch-subtitle', false);
+            }
+        }
+
+        async function batchTranscribe() {
+            if (!currentUpId) return;
+            setLoading('btn-batch-transcribe', true);
+            try {
+                await api(`/api/video/transcribe_all/${currentUpId}`, { method: 'POST' });
+                showToast('批量音频转录已开始，请稍后刷新查看');
+                setTimeout(() => loadVideos(), 2000);
+            } catch (e) {} finally {
+                setLoading('btn-batch-transcribe', false);
+            }
+        }
+
+        async function batchAnalyze() {
+            if (!currentUpId) return;
+            setLoading('btn-batch-analyze', true);
+            try {
+                await api(`/api/analysis/analyze_up/${currentUpId}`, { method: 'POST' });
+                showToast('批量分析已开始，请稍后刷新查看');
+                setTimeout(() => Promise.all([loadVideos(), loadStats()]), 2000);
+            } catch (e) {} finally {
+                setLoading('btn-batch-analyze', false);
+            }
+        }
+
+        // ==================== 收藏夹管理 ====================
+        async function loadFavoriteFolders() {
+            const input = document.getElementById('fav-uid-input');
+            const uid = input.value.trim();
+            if (!uid) return showToast('请输入UID', 'error');
+            if (!/^\d+$/.test(uid)) return showToast('UID必须为数字', 'error');
+
+            currentFavUid = uid;
+            setLoading('btn-fetch-folders', true);
+            try {
+                const data = await api(`/api/favorite/folders?uid=${uid}`);
+                favFolders = data.data || [];
+                const select = document.getElementById('fav-folder-select');
+                if (favFolders.length === 0) {
+                    select.innerHTML = '<option value="">未找到收藏夹（可能需要配置B站Cookie）</option>';
+                    document.getElementById('btn-sync-fav').disabled = true;
+                    showToast('未获取到收藏夹，请确认UID是否正确或配置B站Cookie', 'error');
+                } else {
+                    select.innerHTML = favFolders.map((f, i) =>
+                        `<option value="${f.media_id}" ${i === 0 ? 'selected' : ''}>${f.title} (${f.media_count}个视频)</option>`
+                    ).join('');
+                    currentFavMediaId = favFolders[0].media_id;
+                    document.getElementById('btn-sync-fav').disabled = false;
+                    showToast(`获取到 ${favFolders.length} 个收藏夹`);
+                }
+                select.onchange = function() {
+                    currentFavMediaId = this.value ? parseInt(this.value) : null;
+                };
+            } catch (e) {} finally {
+                setLoading('btn-fetch-folders', false);
+            }
+        }
+
+        async function syncFavoriteVideos() {
+            if (!currentFavUid || !currentFavMediaId) return;
+            setLoading('btn-sync-fav', true);
+            try {
+                const data = await api('/api/favorite/sync', {
+                    method: 'POST',
+                    body: JSON.stringify({ uid: currentFavUid, media_id: currentFavMediaId })
+                });
+                showToast(data.msg || '同步完成');
+                document.getElementById('btn-fav-batch-subtitle').disabled = false;
+                document.getElementById('btn-fav-batch-transcribe').disabled = false;
+                document.getElementById('btn-fav-batch-analyze').disabled = false;
+                currentFavPage = 1;
+                await Promise.all([loadFavoriteVideos(), loadFavoriteStats()]);
+            } catch (e) {} finally {
+                setLoading('btn-sync-fav', false);
+            }
+        }
+
+        async function loadFavoriteVideos() {
+            if (!currentFavUid) return;
+            try {
+                const data = await api(`/api/favorite/list?page=${currentFavPage}&size=${favPageSize}`);
+                favList = data.items || [];
+                totalFavVideos = data.total || 0;
+                renderFavoriteList();
+                updateFavoritePagination();
+            } catch (e) {}
+        }
+
+        async function loadFavoriteStats() {
+            try {
+                const data = await api('/api/favorite/stats');
+                document.getElementById('fav-stats-bar').classList.remove('hidden');
+                document.getElementById('fav-stat-total').textContent = data.total_videos || 0;
+                document.getElementById('fav-stat-analyzed').textContent = data.analyzed_count || 0;
+                const pct = data.total_videos ? Math.round((data.analyzed_count / data.total_videos) * 100) : 0;
+                document.getElementById('fav-stat-progress').style.width = pct + '%';
+            } catch (e) {
+                document.getElementById('fav-stats-bar').classList.add('hidden');
+            }
+        }
+
+        function renderFavoriteList() {
+            const container = document.getElementById('fav-list');
+            const empty = document.getElementById('fav-empty');
+            if (favList.length === 0) {
+                container.innerHTML = '';
+                empty.classList.remove('hidden');
+                document.getElementById('fav-pagination').classList.add('hidden');
+                return;
+            }
+            empty.classList.add('hidden');
+            container.innerHTML = favList.map(video => {
+                const status = video.is_analyzed
+                    ? { label: '已分析', class: 'bg-emerald-100 text-emerald-700' }
+                    : video.has_subtitle
+                    ? { label: '有字幕未分析', class: 'bg-amber-100 text-amber-700' }
+                    : { label: '无字幕', class: 'bg-slate-100 text-slate-500' };
+                const durationMin = video.duration ? Math.floor(video.duration / 60) + ':' + String(video.duration % 60).padStart(2, '0') : '';
+                return `
+                <div class="bg-white rounded-xl shadow-md p-3 flex flex-col sm:flex-row gap-3 hover:shadow-lg transition-shadow">
+                    <img src="${video.cover || ''}" alt="${video.title}"
+                        class="w-full sm:w-[120px] h-[68px] sm:h-[68px] object-cover rounded-lg bg-slate-100 shrink-0">
+                    <div class="flex-1 min-w-0 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-start gap-2">
+                                <h3 class="text-sm font-semibold text-slate-800 line-clamp-2 leading-snug">${video.title}</h3>
+                                <span class="text-[10px] px-2 py-0.5 rounded-full font-medium whitespace-nowrap shrink-0 ${status.class}">${status.label}</span>
+                            </div>
+                            <div class="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                                <p class="text-xs text-slate-400">UP: ${video.uploader_name || '未知'}</p>
+                                ${durationMin ? `<p class="text-xs text-slate-400">${durationMin}</p>` : ''}
+                                <p class="text-xs text-slate-400">收藏于 ${video.fav_time ? new Date(video.fav_time).toLocaleString() : ''}</p>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap gap-2 mt-2 sm:mt-1">
+                            ${video.has_subtitle ? `
+                            <button onclick="fetchFavSubtitle(${video.id}, this)"
+                                class="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-2.5 py-1 rounded font-medium transition-colors">获取字幕</button>
+                            <button onclick="analyzeFavorite(${video.id}, this)"
+                                class="text-xs bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-2.5 py-1 rounded font-medium transition-colors">分析</button>
+                            ` : `
+                            <button onclick="transcribeFavorite(${video.id}, this)"
+                                class="text-xs bg-purple-50 text-purple-600 hover:bg-purple-100 px-2.5 py-1 rounded font-medium transition-colors">音频转录</button>
+                            `}
+                            <button onclick="viewFavoriteResult(${video.id})"
+                                class="text-xs bg-slate-50 text-slate-600 hover:bg-slate-100 px-2.5 py-1 rounded font-medium transition-colors">查看结果</button>
+                            <button onclick="deleteFavorite(${video.id})"
+                                class="text-xs bg-red-50 text-red-500 hover:bg-red-100 px-2 py-1 rounded font-medium transition-colors">删除</button>
+                        </div>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        function updateFavoritePagination() {
+            const totalPages = Math.ceil(totalFavVideos / favPageSize) || 1;
+            const pagination = document.getElementById('fav-pagination');
+            if (totalFavVideos <= favPageSize) {
+                pagination.classList.add('hidden');
+                return;
+            }
+            pagination.classList.remove('hidden');
+            document.getElementById('fav-page-info').textContent = `第 ${currentFavPage} / ${totalPages} 页 (共${totalFavVideos}条)`;
+            document.getElementById('btn-fav-prev').disabled = currentFavPage <= 1;
+            document.getElementById('btn-fav-next').disabled = currentFavPage >= totalPages;
+        }
+
+        async function changeFavoritePage(delta) {
+            const totalPages = Math.ceil(totalFavVideos / favPageSize) || 1;
+            const newPage = currentFavPage + delta;
+            if (newPage < 1 || newPage > totalPages) return;
+            currentFavPage = newPage;
+            await loadFavoriteVideos();
+        }
+
+        async function fetchFavSubtitle(videoId, btn) {
+            const original = btn.innerHTML;
+            btn.innerHTML = `<svg class="animate-spin w-3 h-3 inline mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>获取中`;
+            btn.disabled = true;
+            try {
+                await api(`/api/favorite/subtitle/${videoId}`, { method: 'POST' });
+                showToast('字幕获取成功');
+                await loadFavoriteVideos();
+            } catch (e) {} finally {
+                btn.innerHTML = original;
+                btn.disabled = false;
+            }
+        }
+
+        async function transcribeFavorite(videoId, btn) {
+            const original = btn.innerHTML;
+            btn.innerHTML = `<svg class="animate-spin w-3 h-3 inline mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>转录中`;
+            btn.disabled = true;
+            try {
+                const res = await api(`/api/favorite/transcribe/${videoId}`, { method: 'POST' });
+                showToast(res.msg || '音频转录完成');
+                await loadFavoriteVideos();
+            } catch (e) {} finally {
+                btn.innerHTML = original;
+                btn.disabled = false;
+            }
+        }
+
+        async function analyzeFavorite(videoId, btn) {
+            const original = btn.innerHTML;
+            btn.innerHTML = `<svg class="animate-spin w-3 h-3 inline mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>分析中`;
+            btn.disabled = true;
+            try {
+                await api(`/api/favorite/analyze/${videoId}`, { method: 'POST' });
+                showToast('分析完成');
+                favAnalysisCache[videoId] = null;
+                await Promise.all([loadFavoriteVideos(), loadFavoriteStats()]);
+            } catch (e) {} finally {
+                btn.innerHTML = original;
+                btn.disabled = false;
+            }
+        }
+
+        async function viewFavoriteResult(videoId) {
+            try {
+                const data = await api(`/api/favorite/analysis/${videoId}`);
+                favAnalysisCache[videoId] = data;
+                if (!data.data) {
+                    showToast('暂无分析结果', 'error');
+                    return;
+                }
+                const d = data.data;
+                const sentimentColors = {
+                    '正面': 'bg-emerald-100 text-emerald-700',
+                    '负面': 'bg-red-100 text-red-700',
+                    '中性': 'bg-slate-100 text-slate-600'
+                };
+                const sc = sentimentColors[d.sentiment] || sentimentColors['中性'];
+                const topicsHtml = (d.topics || []).map(t =>
+                    `<span class="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-full font-medium">${t}</span>`
+                ).join('');
+                const keyPointsHtml = (d.key_points || []).map((p, i) =>
+                    `<li class="flex gap-2 text-sm text-slate-700"><span class="text-blue-500 font-bold shrink-0">${i+1}.</span><span>${p}</span></li>`
+                ).join('');
+                document.getElementById('modal-body').innerHTML = `
+                    <div>
+                        <p class="text-xs text-slate-400 mb-1 font-medium">摘要</p>
+                        <p class="text-sm text-slate-700 leading-relaxed bg-slate-50 rounded-lg p-3">${d.summary || '无摘要'}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-400 mb-2 font-medium">关键点</p>
+                        <ul class="space-y-2">${keyPointsHtml || '<li class="text-sm text-slate-400">无关键点</li>'}</ul>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <div>
+                            <p class="text-xs text-slate-400 mb-1 font-medium">主题标签</p>
+                            <div class="flex flex-wrap gap-1.5">${topicsHtml || '<span class="text-sm text-slate-400">无标签</span>'}</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 pt-2 border-t border-slate-100">
+                        <div>
+                            <p class="text-xs text-slate-400 mb-1 font-medium">情感倾向</p>
+                            <span class="text-xs px-2.5 py-1 rounded-full font-medium ${sc}">${d.sentiment || '未知'}</span>
+                        </div>
+                        <div>
+                            <p class="text-xs text-slate-400 mb-1 font-medium">模型</p>
+                            <span class="text-xs text-slate-600 font-mono bg-slate-100 px-2 py-1 rounded">${d.llm_model || '-'}</span>
+                        </div>
+                    </div>
+                `;
+                document.getElementById('modal-overlay').classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            } catch (e) {}
+        }
+
+        async function deleteFavorite(videoId) {
+            if (!confirm('确定删除该收藏视频吗？')) return;
+            try {
+                await api(`/api/favorite/${videoId}`, { method: 'DELETE' });
+                showToast('删除成功');
+                await loadFavoriteVideos();
+                await loadFavoriteStats();
+            } catch (e) {}
+        }
+
+        // ==================== 收藏夹批量操作 ====================
+        async function batchFavoriteSubtitle() {
+            setLoading('btn-fav-batch-subtitle', true);
+            try {
+                await api('/api/favorite/subtitle_all', { method: 'POST' });
+                showToast('批量获取字幕已开始，请稍后刷新查看');
+                setTimeout(() => loadFavoriteVideos(), 2000);
+            } catch (e) {} finally {
+                setLoading('btn-fav-batch-subtitle', false);
+            }
+        }
+
+        async function batchFavoriteTranscribe() {
+            setLoading('btn-fav-batch-transcribe', true);
+            try {
+                await api('/api/favorite/transcribe_all', { method: 'POST' });
+                showToast('批量音频转录已开始，请稍后刷新查看');
+                setTimeout(() => loadFavoriteVideos(), 2000);
+            } catch (e) {} finally {
+                setLoading('btn-fav-batch-transcribe', false);
+            }
+        }
+
+        async function batchFavoriteAnalyze() {
+            setLoading('btn-fav-batch-analyze', true);
+            try {
+                await api('/api/favorite/analyze_all', { method: 'POST' });
+                showToast('批量分析已开始，请稍后刷新查看');
+                setTimeout(() => Promise.all([loadFavoriteVideos(), loadFavoriteStats()]), 2000);
+            } catch (e) {} finally {
+                setLoading('btn-fav-batch-analyze', false);
+            }
+        }
+
+        // ==================== 键盘快捷键 ====================
+        document.getElementById('add-uid-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') addUp();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+    </script>
+</body>
+</html>
